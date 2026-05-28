@@ -1,0 +1,21 @@
+Screen {
+    layout: grid;
+    grid-size: 4 3;
+}
+
+.card{
+    height: 100%;
+    width: 45%;
+    color: black;
+    background: red;
+    border: double white;
+    margin: 1;
+}
+
+.empty{
+    height: 100%;
+    width: 45%;
+    background: black;
+    border: solid white;
+    margin: 1;
+}
