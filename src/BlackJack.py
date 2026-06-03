@@ -62,20 +62,22 @@ player = Player()
 def Clear():
     os.system("cls" if os.name == "nt" else "clear")
 
+Clear()
+
 def Card(value):
-    border = Back.RED
-    face = Back.WHITE
-    reset = Style.RESET_ALL
+    #border = Back.RED
+    #face = Back.WHITE
+    #reset = Style.RESET_ALL
 
     if value == "back":
         return [
-            f"{border},------,{reset}",
-            f"{border}|* |  *|{reset}",
-            f"{border}|*  | *|{reset}",
-            f"{border}|*(][)*|{reset}",
-            f"{border}|* |  *|{reset}",
-            f"{border}|*  | *|{reset}",
-            f"{border}'------'{reset}"
+            "+------+",
+            "|# |  #|",
+            "|#  | #|",
+            "|#(][)#|",
+            "|# |  #|",
+            "|#  | #|",
+            "+------+"
         ]
     if value == "blank":
         return[
@@ -88,28 +90,29 @@ def Card(value):
             "        "
         ]
 
-    color = Fore.RED if value[-1] in "♥♦" else Fore.BLACK
+    #color = Fore.RED if value[-1] in "♥♦" else Fore.BLACK
     if value[:-1] == "10":
         return [
-            f"{border},------,{reset}",
-            f"{border}|{face}{Fore.BLACK}{value[:-1]:>5}{color}{value[-1:]}{border}{Fore.WHITE}|{reset}",
-            f"{border}|{face}      {border}|{reset}",
-            f"{border}|{face}      {border}|{reset}",
-            f"{border}|{face}      {border}|{reset}",
-            f"{border}|{face}{Fore.BLACK}{value[:-1]}{color}{value[-1:]:<4}{border}{Fore.WHITE}|{reset}",
-            f"{border}'------'{reset}"
+            "+------+",
+            f"|{value:>6}|",
+            "|      |",
+            "|      |",
+            "|      |",
+            f"|{value:<6}|",
+            "+------+"
         ]
 
     return [
-        f"{border},------,{reset}",
-        f"{border}|{face}{Fore.BLACK}{value[:-1]:>5}{color}{value[-1:]}{border}{Fore.WHITE}|{reset}",
-        f"{border}|{face}      {border}|{reset}",
-        f"{border}|{face}      {border}|{reset}",
-        f"{border}|{face}      {border}|{reset}",
-        f"{border}|{face}{Fore.BLACK}{value[:-1]}{color}{value[-1:]:<5}{border}{Fore.WHITE}|{reset}",
-        f"{border}'------'{reset}"
+            "+------+",
+            f"|{value:>6}|",
+            "|      |",
+            "|      |",
+            "|      |",
+            f"|{value:<6}|",
+            "+------+"
     ]
 
+# niet door mij gemaakt
 def PrintCards(cards):
     Clear()
     card_lists = [Card(card) for card in cards]
@@ -117,17 +120,38 @@ def PrintCards(cards):
     for i in range(len(card_lists[0])):       
         print("  ".join(card[i] for card in card_lists))
 
-def CardsToLines(cards):
-    card_lists = [Card(card) for card in cards]
+# niet door mij gemaakt
+def CardsToLines(top_cards, bottom_cards, width):
+
+    def build_row(cards):
+        if not cards:
+            return []
+
+        card_lists = [Card(card) for card in cards]
+
+        lines = []
+        for i in range(7):
+            line = "  ".join(card[i] for card in card_lists)
+
+            # centreren
+            padding = max(0, (width - len(line)) // 2)
+            lines.append(" " * padding + line)
+
+        return lines
 
     lines = []
 
-    for i in range(len(card_lists[0])):
-        lines.append("  ".join(card[i] for card in card_lists))
+    # boven
+    lines += build_row(top_cards)
+    lines.append("")
+
+    # onder
+    lines += build_row(bottom_cards)
 
     return lines
 
-def menu(title, classes, cards=None, color='white'):
+#niet door mij gemaakt
+def menu(title, classes, top_cards=None, bottom_cards=None, color='white'):
 
     def character(stdscr):
 
@@ -163,15 +187,23 @@ def menu(title, classes, cards=None, color='white'):
 
             stdscr.erase()
 
+
             row = 0
+            h, w = stdscr.getmaxyx()
+
+            for line in CardsToLines(top_cards or [], bottom_cards or [], w):
+                stdscr.addstr(row, 0, line)
+                row += 1
+
+            
 
             # Kaarten tekenen
-            if cards:
-                for line in CardsToLines(cards):
-                    stdscr.addstr(row, 0, line)
-                    row += 1
+            #if top_cards or bottom_cards:
+                #for line in CardsToLines(top_cards or [], bottom_cards or []):
+                    #stdscr.addstr(row, 0, line)
+                    #row += 1
 
-                row += 2
+                #row += 1
 
             # Titel
             stdscr.addstr(row, 0, title, attributes['normal'])
@@ -206,32 +238,35 @@ def menu(title, classes, cards=None, color='white'):
 
     return curses.wrapper(character)
 
-#PrintCards(["blank", "K♥", "back", "blank"])
+def PrintTable(options, cards_top, cards_bottom):
+    choise = menu(
+        "Blackjack",
+        options,
+        top_cards=cards_top,
+        bottom_cards=cards_bottom,
+        color="green"
+    )
+    return choise
 
-#(f"output:", menu('TEST', ['this will return 0','this will return 1', 'this is just to show that you can do more options then just two'], 'blue'))
 
-keuze = menu(
-    "Blackjack",
-    ["Hit", "Stand", "Double Down"],
-    cards=["blank", "K♥", "back", "blank"],
-    color="green"
-)
-
-def on_press(key):
-    if hasattr(key, "char") and key.char == "l":
-        PrintCards(["back", "K♥", "back", "blank"])
-    if hasattr(key, "char") and key.char == "q":
-        print(f"ended black jack with {player.chips or 0} chips")
-        sys.exit()
-
-with Listener(on_press=on_press) as listener:
-    listener.join()
+#PrintTable(["Hit", "Stand", "Double Down"], ["blank", "K♥", "back", "blank"], ["blank", "K♥", "A♥", "blank"])
 
 
 def DealCards(card, is_player = False, is_dealer = False):
     deck.DealCard(card)
     if is_player:
         table.DealPlayerCard(card)
+        PrintTable(["Hit", "Stand", "double Down"], table.dealer_cards, table.player_cards)
+
 
     if is_dealer:
         table.DealDealerCard(card)
+        PrintTable(["Hit", "Stand", "double Down"], table.dealer_cards, table.player_cards)
+
+def on_press(key):
+    if hasattr(key, "char") and key.char == "q":
+        print(f"ended black jack with {player.chips or 0} chips")
+        sys.exit()
+
+with Listener(on_press=on_press) as listener:
+    listener.join()
