@@ -4,6 +4,7 @@ import time
 import os
 import curses
 import sys
+import numbers
 from pynput.keyboard import Key, Listener
 
 # Initialize colorama (needed for Windows)
@@ -14,25 +15,59 @@ init(autoreset=True)
 #sys.stdout.write(f"\rkaas")
 class Table():
     def __init__(self):
+        self.dealer_card_hidden = False
         self.dealer_cards = []
         self.player_cards = []
+        self.player_total = 0
+        self.dealer_total = 0
+        self.keep_going = True
+        self.player_aces = 0
+        self.dealer_aces = 0
 
     def DealDealerCard(self, card):
         self.dealer_cards.append(card)
 
-    def DealPlayerCard(self, card):
-        self.player_ccards.append(card)
+        non_number = "KJQ"
+        if card[:-1] in non_number:
+            self.dealer_total += 10
+        elif card[:-1] == "A":
+            self.dealer_total += 11
+        else:
+            self.dealer_total += int(card[:-1])
+        if self.dealer_total > 21 and ("A" == card[:-1] for card in self.dealer_cards) and self.dealer_aces < sum(card.count("A") for card in self.dealer_cards):
+            self.dealer_total -= 10
 
-    #def GetTable(self):
+
+    def DealPlayerCard(self, card):
+        self.player_cards.append(card)
+
+        non_number = "KJQ"
+        if card[:-1] in non_number:
+            self.player_total += 10
+        elif card[:-1] == "A":
+            self.player_total += 11
+        else:
+            self.player_total += int(card[:-1])
+        if self.player_total > 21 and ("A" == card[:-1] for card in self.player_cards) and self.player_aces < sum(card.count("A") for card in self.player_cards):
+            self.player_total -= 10
+
+    def ShowOrHide(self, show):
+        if show:
+            self.dealer_card_hidden = False
+        else:
+            self.dealer_card_hidden = True
+
+    def Continue(self):
+        self.keep_going = False
         
 
 
 class Deck():
     deck_of_cards = [
-        '1♠', '2♠', '3♠', '4♠', '5♠', '6♠', '7♠', '8♠', '9♠', '10♠', 'J♠', 'Q♠', 'K♠', 'A♠',
-        '1♥', '2♥', '3♥', '4♥', '5♥', '6♥', '7♥', '8♥', '9♥', '10♥', 'J♥', 'Q♥', 'K♥', 'A♥',
-        '1♦', '2♦', '3♦', '4♦', '5♦', '6♦', '7♦', '8♦', '9♦', '10♦', 'J♦', 'Q♦', 'K♦', 'A♦',
-        '1♣', '2♣', '3♣', '4♣', '5♣', '6♣', '7♣', '8♣', '9♣', '10♣', 'J♣', 'Q♣', 'K♣', 'A♣'
+        '2♠', '3♠', '4♠', '5♠', '6♠', '7♠', '8♠', '9♠', '10♠', 'J♠', 'Q♠', 'K♠', 'A♠',
+        '2♥', '3♥', '4♥', '5♥', '6♥', '7♥', '8♥', '9♥', '10♥', 'J♥', 'Q♥', 'K♥', 'A♥',
+        '2♦', '3♦', '4♦', '5♦', '6♦', '7♦', '8♦', '9♦', '10♦', 'J♦', 'Q♦', 'K♦', 'A♦',
+        '2♣', '3♣', '4♣', '5♣', '6♣', '7♣', '8♣', '9♣', '10♣', 'J♣', 'Q♣', 'K♣', 'A♣'
     ]
 
     def __init__(self):
@@ -112,7 +147,6 @@ def Card(value):
             "+------+"
     ]
 
-# niet door mij gemaakt
 def PrintCards(cards):
     Clear()
     card_lists = [Card(card) for card in cards]
@@ -120,7 +154,7 @@ def PrintCards(cards):
     for i in range(len(card_lists[0])):       
         print("  ".join(card[i] for card in card_lists))
 
-# niet door mij gemaakt
+
 def CardsToLines(top_cards, bottom_cards, width):
 
     def build_row(cards):
@@ -150,9 +184,67 @@ def CardsToLines(top_cards, bottom_cards, width):
 
     return lines
 
-#niet door mij gemaakt
-def menu(title, classes, top_cards=None, bottom_cards=None, color='white'):
+def Debug(msg):
+    with open("debug.txt", "a", encoding="utf-8") as f:
+        f.write(str(msg) + "\n")
 
+def menu(title, classes, top_cards=None, bottom_cards=None, color='white'):
+    new_top_cards = [card for card in top_cards]
+    new_bottom_cards = [card for card in bottom_cards]
+    
+    
+    if len(classes) == 0:
+        def character(stdscr):
+            while True:
+                stdscr.erase()
+            
+                row = 0
+                h, w = stdscr.getmaxyx()
+
+                Debug(table.dealer_card_hidden)
+                if table.dealer_card_hidden == True:
+                    new_top_cards[0] = "back"
+
+
+                top_lines = CardsToLines(new_top_cards, [], w)
+                bottom_lines = CardsToLines([], new_bottom_cards, w)                
+                
+                #add dealer header
+                dealer_cards = [card[:-1] for card in table.dealer_cards]
+                dealer_value = ""
+                if table.dealer_card_hidden:
+                    dealer_cards[0] = "?"
+                    dealer_value = " + ".join(dealer_cards)
+                else:
+                    dealer_value = " + ".join(dealer_cards) + " = " + str(table.dealer_total)
+
+                stdscr.addstr(row, 0, f"Dealer ({dealer_value}):")
+                row += 1
+
+
+                for line in top_lines:
+                    stdscr.addstr(row, 0, line) 
+                    row += 1
+
+                #add player header
+                player_cards = [card[:-1] for card in table.player_cards]
+                player_value = " + ".join(player_cards) + " = " + str(table.player_total)
+
+                stdscr.addstr(row, 0, f"Dealer ({player_value}):")
+                row += 1
+
+                for line in bottom_lines:
+                    stdscr.addstr(row, 0, line) 
+                    row += 1
+
+                stdscr.refresh()
+                time.sleep(0.75)
+
+                return 0
+
+        return curses.wrapper(character)
+        
+    
     def character(stdscr):
 
         curses.curs_set(0)
@@ -191,11 +283,40 @@ def menu(title, classes, top_cards=None, bottom_cards=None, color='white'):
             row = 0
             h, w = stdscr.getmaxyx()
 
-            for line in CardsToLines(top_cards or [], bottom_cards or [], w):
-                stdscr.addstr(row, 0, line)
+            if table.dealer_card_hidden:
+                new_top_cards[0] = "back"
+            top_lines = CardsToLines(new_top_cards, [], w)
+            bottom_lines = CardsToLines([], new_bottom_cards, w)
+
+            #add dealer header
+            dealer_cards = [card[:-1] for card in table.dealer_cards]
+            dealer_value = ""
+            if table.dealer_card_hidden:
+                dealer_cards[0] = "?"
+                dealer_value = " + ".join(dealer_cards)
+            else:
+                dealer_value = " + ".join(dealer_cards) + " = " + str(table.dealer_total)
+
+            stdscr.addstr(row, 0, f"Dealer ({dealer_value}):")
+            row += 1
+
+
+            for line in top_lines:
+                stdscr.addstr(row, 0, line) 
                 row += 1
 
-            
+
+            #add player header
+            player_cards = [card[:-1] for card in table.player_cards]
+            player_value = " + ".join(player_cards) + " = " + str(table.player_total)
+
+            stdscr.addstr(row, 0, f"Dealer ({player_value}):")
+            row += 1
+
+            for line in bottom_lines:
+                stdscr.addstr(row, 0, line) 
+                row += 1
+
 
             # Kaarten tekenen
             #if top_cards or bottom_cards:
@@ -208,6 +329,7 @@ def menu(title, classes, top_cards=None, bottom_cards=None, color='white'):
             # Titel
             stdscr.addstr(row, 0, title, attributes['normal'])
             row += 2
+
 
             # Opties
             for i, item in enumerate(classes):
@@ -236,7 +358,9 @@ def menu(title, classes, top_cards=None, bottom_cards=None, color='white'):
             elif c in (10, 13):
                 return option
 
+    
     return curses.wrapper(character)
+    time.sleep(0.75)
 
 def PrintTable(options, cards_top, cards_bottom):
     choise = menu(
@@ -252,21 +376,97 @@ def PrintTable(options, cards_top, cards_bottom):
 #PrintTable(["Hit", "Stand", "Double Down"], ["blank", "K♥", "back", "blank"], ["blank", "K♥", "A♥", "blank"])
 
 
-def DealCards(card, is_player = False, is_dealer = False):
-    deck.DealCard(card)
+def DealCards(card, choices = None, is_player = False, is_dealer = False, back_card = None):
+    if choices == None:
+        choices = []
+
     if is_player:
         table.DealPlayerCard(card)
-        PrintTable(["Hit", "Stand", "double Down"], table.dealer_cards, table.player_cards)
+        if table.player_total > 21:
+            Lose()
+        elif table.player_total == 21 and len(table.player_cards) == 2:
+            Win()
 
+        choise = PrintTable(choices, table.dealer_cards, table.player_cards)
+        return choise
 
     if is_dealer:
-        table.DealDealerCard(card)
-        PrintTable(["Hit", "Stand", "double Down"], table.dealer_cards, table.player_cards)
+        if card == "back":
+            table.DealDealerCard(back_card)
+        else:            
+            table.DealDealerCard(card)
 
-def on_press(key):
-    if hasattr(key, "char") and key.char == "q":
-        print(f"ended black jack with {player.chips or 0} chips")
-        sys.exit()
+        choise = PrintTable(choices, table.dealer_cards, table.player_cards)
+        return choise
 
-with Listener(on_press=on_press) as listener:
-    listener.join()
+
+def Hit():
+    choice = DealCards(deck.DealCard(), choices = ["hit", "stand"], is_player = True)
+    return choice
+
+def Win():
+    table.Continue()
+
+    curses.endwin()
+
+    print("YOU WON!!!")
+    print(f"Dealer: {table.dealer_cards}")
+    print(f"Player: {table.player_cards}")
+
+    sys.exit()
+
+def Lose():
+    table.Continue()
+
+    curses.endwin()
+
+    print("YOU LOST :(")
+    print(f"Dealer: {table.dealer_cards}")
+    print(f"Player: {table.player_cards}")
+
+    sys.exit()
+
+def PlayLoop():
+    choice = 0
+    
+    #deal first card for dealer
+    dealer_card = deck.DealCard()       
+    table.ShowOrHide(False)
+    DealCards("back", is_dealer = True, back_card = dealer_card)
+
+    #deal first card for Player
+    DealCards(deck.DealCard(), is_player = True)
+
+    #deal second dealer card
+    DealCards(deck.DealCard(), is_dealer = True)
+
+    #deal second player Card
+    choice = DealCards(deck.DealCard(), choices = ["hit", "stand"], is_player = True)
+
+    while table.keep_going == True:
+        if choice == 0:
+            choice = Hit()
+
+        elif choice == 1:
+            table.ShowOrHide(True)
+            
+            if table.dealer_total >= 17:
+                if table.dealer_total > 21:
+                    Win()
+                elif table.dealer_total >= table.player_total:
+                    Lose()
+            else:
+                DealCards(deck.DealCard(), is_dealer = True)
+            
+
+        
+
+PlayLoop()
+
+#def on_press(key):
+    #if hasattr(key, "char") and key.char == "q":
+        #print(f"ended black jack with {player.chips or 0} chips")
+        #sys.exit()
+
+#with Listener(on_press=on_press) as listener:
+    #listener.join()
