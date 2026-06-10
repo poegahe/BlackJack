@@ -6,6 +6,17 @@ import curses
 import sys
 import numbers
 import keyboard
+import msvcrt
+
+#systeem functies om de terminal tree clearen en geen inputs in de buffer te hebben
+def clear_buffer():
+    while msvcrt.kbhit():
+        msvcrt.getch()
+
+def Clear():
+    os.system("cls" if os.name == "nt" else "clear")
+
+clear_buffer()
 
 # Initialize colorama (needed for Windows)
 init(autoreset=True)
@@ -101,13 +112,11 @@ class Player():
         self.hands_won = 0
         self.hands_lost = 0
 
+#initalizeer de classes
 table = Table()
 deck = Deck()
 deck.Shuffle()
 player = Player()
-
-def Clear():
-    os.system("cls" if os.name == "nt" else "clear")
 
 def Card(value):
     #border = Back.RED
@@ -157,7 +166,7 @@ def Card(value):
             "+------+"
     ]
 
-def CardsToLines(top_cards, bottom_cards, width):
+def CardsToLines(top_cards, bottom_cards):
 
     def build_row(cards):
         if not cards:
@@ -168,10 +177,7 @@ def CardsToLines(top_cards, bottom_cards, width):
         lines = []
         for i in range(7):
             line = "  ".join(card[i] for card in card_lists)
-
-            # centreren
-            padding = max(0, (width - len(line)) // 2)
-            lines.append(" " * padding + line)
+            lines.append(line)
 
         return lines
 
@@ -191,17 +197,20 @@ def Debug(msg):
         f.write(str(msg) + "\n")
 
 def menu(title, options, top_cards=None, bottom_cards=None, color="white"):
+    # initialize variables vor the cards
     Clear()
     new_top_cards = [card for card in top_cards]
     new_bottom_cards = [card for card in bottom_cards]
     choice = 0
 
+    #check if the dealer still has his card upside down
     if table.dealer_card_hidden:
         new_top_cards[0] = "back"
 
+    #if there are no options print the table and return 0
     if len(options) == 0:
-        top_lines = CardsToLines(new_top_cards, [], 0)
-        bottom_lines = CardsToLines([], new_bottom_cards, 0)                
+        top_lines = CardsToLines(new_top_cards, [])
+        bottom_lines = CardsToLines([], new_bottom_cards)                
         
 
         #add dealer header
@@ -238,8 +247,8 @@ def menu(title, options, top_cards=None, bottom_cards=None, color="white"):
         while True:
             #time.sleep(0.75)
             
-            top_lines = CardsToLines(new_top_cards, [], 0)
-            bottom_lines = CardsToLines([], new_bottom_cards, 0)                
+            top_lines = CardsToLines(new_top_cards, [])
+            bottom_lines = CardsToLines([], new_bottom_cards)                
         
 
             #calculate dealer total
@@ -267,7 +276,6 @@ def menu(title, options, top_cards=None, bottom_cards=None, color="white"):
 
             for line in bottom_lines:
                 print(f"{line}")
-
             
             #print actions options and header
             print(title)
@@ -277,7 +285,6 @@ def menu(title, options, top_cards=None, bottom_cards=None, color="white"):
                     print(Fore.GREEN + f"   {options[i]}\n")
                 else:
                     print(f"   {options[i]}\n")
-
 
             #check for option
             while True:
@@ -293,8 +300,6 @@ def menu(title, options, top_cards=None, bottom_cards=None, color="white"):
                     time.sleep(0.25)
                     return selected
                 
-
-
 def PrintTable(title, options, cards_top, cards_bottom):
     choice = menu(
         title,
@@ -310,13 +315,6 @@ def DealCards(card, choices = None, is_player = False, is_dealer = False, back_c
         choices = []
 
     if is_player:
-        table.DealPlayerCard(card)
-        if table.player_total > 21:
-            Lose()
-            return
-        elif table.player_total == 21 and len(table.player_cards) == 2:
-            Win()
-            return
 
         choice = PrintTable("blackJack", choices, table.dealer_cards, table.player_cards)
         return choice
@@ -338,7 +336,6 @@ def Restart(new_deck):
     table.Reset()
     return
     
-
 def Hit():
     choice = DealCards(deck.DealCard(), choices = ["hit", "stand"], is_player = True)
     return choice
@@ -370,26 +367,40 @@ def Lose():
         return "Quit"
 
 def PlayLoop():
-    table.Reset()
+    if getattr(PlayLoop, "has_run", True):
+        #run only once
+        PlayLoop.has_run = False
     
     #deal first card for dealer
-    dealer_card = deck.DealCard()       
+    table.DealDealerCard(deck.DealCard())     
     table.ShowOrHide(False)
-    DealCards("back", is_dealer = True, back_card = dealer_card)
+    choice = PrintTable("BlackJack", [], table.dealer_cards, table.player_cards)
 
     #deal first card for Player
-    DealCards(deck.DealCard(), is_player = True)
+    table.DealPlayerCard(deck.DealCard()) 
+    choice = PrintTable("BlackJack", [], table.dealer_cards, table.player_cards)
 
     #deal second dealer card
-    DealCards(deck.DealCard(), is_dealer = True)
+    table.DealDealerCard(deck.DealCard())
+    choice = PrintTable("BlackJack", [], table.dealer_cards, table.player_cards)
 
     #deal second player Card
-    choice = DealCards(deck.DealCard(), choices = ["hit", "stand"], is_player = True)
+    table.DealPlayerCard(deck.DealCard()) 
+    if table.player_total == 21:
+        return Win()
+    choice = PrintTable("BlackJack", ["hit", "stand"], table.dealer_cards, table.player_cards)
 
     while table.keep_going == True:
+        #if player chooses hit
         if choice == 0:
-            choice = Hit()
+            table.DealPlayerCard(deck.DealCard()) 
 
+            if table.player_total > 21:
+                return Lose()
+
+            choice = PrintTable("BlackJack", ["hit", "stand"], table.dealer_cards, table.player_cards)
+
+        #if player chooses stand
         elif choice == 1:
             table.ShowOrHide(True)
             PrintTable("BlackJack", [], table.dealer_cards, table.player_cards)
@@ -398,18 +409,15 @@ def PlayLoop():
             while True:
                 if table.dealer_total >= 17:
                     break
-                DealCards(deck.DealCard(), is_dealer=True)
+                table.DealDealerCard(deck.DealCard())
+                PrintTable("BlackJack", [], table.dealer_cards, table.player_cards)
 
             if table.dealer_total > 21:
-                Win()
+                return Win()
             elif table.dealer_total >= table.player_total:
                 return Lose()
             else:
                 return Win()
-    return "Restart"
-
-#with Listener(on_release=on_press) as listener:
-    #listener.join()
 
 while True:
     result = PlayLoop()
@@ -418,3 +426,5 @@ while True:
         continue
     elif result == "Quit":
         break
+
+clear_buffer()
