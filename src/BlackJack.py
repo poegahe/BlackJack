@@ -2,19 +2,22 @@ from colorama import Fore, Back, Style, init
 import random
 import time
 import os
-import curses
 import sys
 import numbers
 import keyboard
 import msvcrt
 
-#systeem functies om de terminal tree clearen en geen inputs in de buffer te hebben
+#systeem functies to clear terminal buffer
 def clear_buffer():
     while msvcrt.kbhit():
         msvcrt.getch()
 
 def Clear():
     os.system("cls" if os.name == "nt" else "clear")
+
+def Debug(msg):
+    with open("debug.txt", "a", encoding="utf-8") as f:
+        f.write(str(msg) + "\n")
 
 clear_buffer()
 
@@ -89,12 +92,12 @@ class Deck():
     ]
 
     def __init__(self):
-        self.cards = Deck.deck_of_cards
+        self.cards = [card for card in Deck.deck_of_cards]
         self.dealt_cards = []
         random.shuffle(self.cards)
 
     def NewDeck(self):
-        self.cards = Deck.deck_of_cards
+        self.cards = [card for card in Deck.deck_of_cards]
         self.dealt_cards = []
         random.shuffle(self.cards)
 
@@ -106,11 +109,23 @@ class Deck():
         return self.cards.pop(0)
 
 class Player():
-    def __init__(self, starting_chips = 100):
+    def __init__(self, starting_chips = 250):
         self.chips = starting_chips
+        self.bet_amount = 0
         self.hands_played = 0
         self.hands_won = 0
         self.hands_lost = 0
+
+    def SetBetAmount(self, amount):
+        self.bet_amount = amount
+
+    def Lose(self):
+        self.chips -= self.bet_amount
+        self.bet_amount = 0
+
+    def Win(self):
+        self.chips += self.bet_amount
+        self.bet_amount = 0
 
 #initalizeer de classes
 table = Table()
@@ -192,16 +207,52 @@ def CardsToLines(top_cards, bottom_cards):
 
     return lines
 
-def Debug(msg):
-    with open("debug.txt", "a", encoding="utf-8") as f:
-        f.write(str(msg) + "\n")
-
-def menu(title, options, top_cards=None, bottom_cards=None, color="white"):
-    # initialize variables vor the cards
+def menu(title=None, options=None, top_cards=None, bottom_cards=None, color="white", strings=[]):
     Clear()
+    choice = 0
+
+    if top_cards == None and bottom_cards == None and len(strings) > 0:
+        if not options == None:
+            selected = 0
+            while True:
+                Clear()
+                for string in strings:
+                    print(string)
+
+                print("")
+
+                #print actions options and header
+                print(title)
+
+                for i in range(len(options)):
+                    if i == selected:
+                        print(Fore.GREEN + f"   {options[i]}\n")
+                    else:
+                        print(f"   {options[i]}\n")
+
+                time.sleep(0.2)
+                #check for option
+                while True:
+                    if keyboard.is_pressed('down'):
+                        if selected < len(options) - 1:
+                            selected += 1
+                            break
+                    elif keyboard.is_pressed('up'):
+                        if selected > 0:
+                            selected -= 1
+                            break
+                    elif keyboard.is_pressed('enter'):
+                        time.sleep(0.25)
+                        return selected
+        else:
+            for string in strings:
+                print(string)
+            time.sleep(2)
+            return 0    
+    
+    #initialize variables for the cards
     new_top_cards = [card for card in top_cards]
     new_bottom_cards = [card for card in bottom_cards]
-    choice = 0
 
     #check if the dealer still has his card upside down
     if table.dealer_card_hidden:
@@ -212,6 +263,10 @@ def menu(title, options, top_cards=None, bottom_cards=None, color="white"):
         top_lines = CardsToLines(new_top_cards, [])
         bottom_lines = CardsToLines([], new_bottom_cards)                
         
+        print("|||||||||||||||||||||||")
+        print(f" U have {player.chips} chips")
+        print(f" Current amount you bet is {player.bet_amount} chips")
+        print("|||||||||||||||||||||||")
 
         #add dealer header
         dealer_cards = [card[:-1] for card in table.dealer_cards]
@@ -227,9 +282,6 @@ def menu(title, options, top_cards=None, bottom_cards=None, color="white"):
         for line in top_lines:
             print(f"{line}")
 
-        #print("\n")
-
-
         #add player header
         player_cards = [card[:-1] for card in table.player_cards]
         player_value = " + ".join(player_cards) + " = " + str(table.player_total)
@@ -244,12 +296,9 @@ def menu(title, options, top_cards=None, bottom_cards=None, color="white"):
 
     else:
         selected = 0
-        while True:
-            #time.sleep(0.75)
-            
+        while True:           
             top_lines = CardsToLines(new_top_cards, [])
             bottom_lines = CardsToLines([], new_bottom_cards)                
-        
 
             #calculate dealer total
             dealer_cards = [card[:-1] for card in table.dealer_cards]
@@ -264,15 +313,20 @@ def menu(title, options, top_cards=None, bottom_cards=None, color="white"):
             player_cards = [card[:-1] for card in table.player_cards]
             player_value = " + ".join(player_cards) + " = " + str(table.player_total)
 
-            #print dealer total and cards
             Clear()
+            print("|||||||||||||||||||||||")
+            print(f" U have {player.chips} chips")
+            print(f" Current amount you bet is {player.bet_amount} chips")
+            print("|||||||||||||||||||||||")
+
+            #print dealer total and cards          
             print(f"Dealer ({dealer_value}):")
 
             for line in top_lines:
                 print(f"{line}")
 
             #print player total and cards
-            print(f"Dealer ({player_value}):")
+            print(f"Player ({player_value}):")
 
             for line in bottom_lines:
                 print(f"{line}")
@@ -286,6 +340,7 @@ def menu(title, options, top_cards=None, bottom_cards=None, color="white"):
                 else:
                     print(f"   {options[i]}\n")
 
+            time.sleep(0.2)
             #check for option
             while True:
                 if keyboard.is_pressed('down'):
@@ -300,33 +355,62 @@ def menu(title, options, top_cards=None, bottom_cards=None, color="white"):
                     time.sleep(0.25)
                     return selected
                 
-def PrintTable(title, options, cards_top, cards_bottom):
+def PrintTable(title, options, top_cards, bottom_cards):
     choice = menu(
-        title,
-        options,
-        top_cards=cards_top,
-        bottom_cards=cards_bottom,
+        title = title,
+        options = options,
+        top_cards = top_cards,
+        bottom_cards = bottom_cards,
         color="green"
     )
     return choice
 
-def DealCards(card, choices = None, is_player = False, is_dealer = False, back_card = None):
-    if choices == None:
-        choices = []
-
-    if is_player:
-
-        choice = PrintTable("blackJack", choices, table.dealer_cards, table.player_cards)
-        return choice
-
-    if is_dealer:
-        if card == "back":
-            table.DealDealerCard(back_card)
-        else:            
-            table.DealDealerCard(card)
-
-        choice = PrintTable("BlackJack", choices, table.dealer_cards, table.player_cards)
-        return choice
+def PrintChipsBetting():
+    amount = 0
+    while True:
+        Clear()
+        choice = menu(
+            title = "Choose how much you want to bet",
+            options = ["bet 25", "bet 50", "bet 100", "bet 250", "bet custom amount"],
+            strings = ["|||||||||||||||||||||||", f" You have {player.chips} chips", "|||||||||||||||||||||||"]
+        )   
+        print("")
+        if choice == 0:
+            player.SetBetAmount(25)
+            return 25
+        elif choice == 1:
+            if player.chips < 50:
+                print("you dont have enough chips")
+                time.sleep(1)
+                continue
+            player.SetBetAmount(50)
+            return 50
+        elif choice == 2:
+            if player.chips < 100:
+                print("you dont have enough chips")
+                time.sleep(1)
+                continue
+            player.SetBetAmount(100)
+            return 100
+        elif choice == 3:
+            if player.chips < 250:
+                print("you dont have enough chips")
+                time.sleep(1)
+                continue
+            player.SetBetAmount(250)
+            return 250
+        else:       
+            clear_buffer()
+            amount = input("Choose how much you want to bet: ")
+            if int(amount) > player.chips:
+                print("You dont have that mutch chips, please choose again")
+                continue
+            elif not int(amount) % 25 == 0:
+                print("You must bet a amount in increments of 25, please choose again")
+                continue
+            else:
+                player.SetBetAmount(int(amount))
+                return int(amount)
 
 def Restart(new_deck):
     Clear()
@@ -335,19 +419,16 @@ def Restart(new_deck):
     
     table.Reset()
     return
-    
-def Hit():
-    choice = DealCards(deck.DealCard(), choices = ["hit", "stand"], is_player = True)
-    return choice
 
 def Win():
     table.Continue()
 
-    choice = PrintTable("You won!", ["Another game", "Quit"], table.dealer_cards, table.player_cards)
+    choice = PrintTable(f"You won {player.bet_amount} chips \nYour new balance is {player.chips + player.bet_amount} chips", ["Another game", "Quit"], table.dealer_cards, table.player_cards)
+    player.Win()
 
     if choice == 0:
         Restart(len(deck.cards) <= 26)
-        table.keep_going = False
+        #table.keep_going = False
         return "Restart"
 
     elif choice == 1:
@@ -356,11 +437,12 @@ def Win():
 def Lose():
     table.Continue()
 
-    choice = PrintTable("You lost", ["Another game", "Quit"], table.dealer_cards, table.player_cards)
+    choice = PrintTable(f"You lost {player.bet_amount} chips \nYour new balance is {player.chips - player.bet_amount} chips", ["Another game", "Quit"], table.dealer_cards, table.player_cards)
+    player.Lose()
 
     if choice == 0:
         Restart(len(deck.cards) <= 26)
-        table.keep_going = False
+        #table.keep_going = False
         return "Restart"
 
     elif choice == 1:
@@ -371,6 +453,8 @@ def PlayLoop():
         #run only once
         PlayLoop.has_run = False
     
+    bet_amount = PrintChipsBetting()
+
     #deal first card for dealer
     table.DealDealerCard(deck.DealCard())     
     table.ShowOrHide(False)
@@ -388,7 +472,8 @@ def PlayLoop():
     table.DealPlayerCard(deck.DealCard()) 
     if table.player_total == 21:
         return Win()
-    choice = PrintTable("BlackJack", ["hit", "stand"], table.dealer_cards, table.player_cards)
+
+    choice = PrintTable("BlackJack", ["hit", "stand", "double"], table.dealer_cards, table.player_cards)
 
     while table.keep_going == True:
         #if player chooses hit
@@ -398,7 +483,7 @@ def PlayLoop():
             if table.player_total > 21:
                 return Lose()
 
-            choice = PrintTable("BlackJack", ["hit", "stand"], table.dealer_cards, table.player_cards)
+            choice = PrintTable("BlackJack", ["hit", "stand", "double"], table.dealer_cards, table.player_cards)
 
         #if player chooses stand
         elif choice == 1:
@@ -409,7 +494,7 @@ def PlayLoop():
             while True:
                 if table.dealer_total >= 17:
                     break
-                table.DealDealerCard(deck.DealCard())
+                table.DealDealerCard(deck.DealCard()) 
                 PrintTable("BlackJack", [], table.dealer_cards, table.player_cards)
 
             if table.dealer_total > 21:
@@ -419,12 +504,27 @@ def PlayLoop():
             else:
                 return Win()
 
+        #if player chooses to double
+        elif choice == 2:
+            if player.chips < player.bet_amount * 2:
+                print("You dont have enough chips to do this")
+                choice = PrintTable("BlackJack", ["hit", "stand", "double"], table.dealer_cards, table.player_cards)
+                continue
+
+            player.SetBetAmount(player.bet_amount * 2)
+            table.DealPlayerCard(deck.DealCard())
+            PrintTable("BlackJack", [], table.dealer_cards, table.player_cards)
+            choice = 1
+            continue
+
 while True:
     result = PlayLoop()
 
     if result == "Restart":
         continue
     elif result == "Quit":
+        break
+    else:
         break
 
 clear_buffer()
